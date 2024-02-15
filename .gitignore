@@ -1,2 +1,6 @@
-venv/
+*venv/
 test.py
+data/
+data
+scratch/
+output/

@@ -1,0 +1,7 @@
+# INSTALL THIS REQUIREMENTS FIRST 
+# `pip install -r requirements1.txt && pip install -r requirements2.txt`
+bokeh==3.3.4
+Bottleneck==1.3.8
+dask==2024.2.1 
+MarkupSafe==2.1.5
+xyzservices==2023.10.1
