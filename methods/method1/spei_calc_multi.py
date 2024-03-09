@@ -7,6 +7,7 @@ import geopandas as gpd
 from os.path import exists
 from os import remove
 from scipy.stats import genlogistic
+from scipy.stats import genextreme as gev
 from scipy.special import ndtri
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -123,13 +124,15 @@ def preprocess_prec(prec_ds: xr.Dataset) -> xr.Dataset:
     return prec_ds
 
 
-
 def preprocess_temp(temp_ds: xr.Dataset) -> xr.DataArray:
     # Rename coordinate dimensions
     temp_ds = temp_ds.rename({"latitude": "lat", "longitude": "lon"})
 
     # Convert time dimensions type to datetime64[ns]
     temp_ds['time'] = temp_ds['time'].astype('datetime64[ns]')
+
+    # Convert to Celsius
+    temp_ds['t2m'] = temp_ds['t2m'] - 273.15
 
     # Convert longitude coordinates from 0-360 to -180 to 180
     if (temp_ds.lon >= 180).any():
@@ -156,64 +159,80 @@ def spatial_subset(ds: xr.Dataset, lat_bounds: list, lon_bounds: list) -> xr.Dat
     return ds.sel(lat=slice(*lat_bounds), lon=slice(*lon_bounds))
 
 
-def calc_pet_thornthwaite(temp_ds: xr.Dataset, time_scale: int = 0) -> xr.DataArray:
+def calc_pet_thornthwaite(temp_ds: xr.Dataset, time_scale: int = 1) -> xr.DataArray:
     """
     Calculate PET using the Thornthwaite equation.
-    temp: Monthly average temperature in Celsius.
+    temp: Monthly average 2m temperature in Celsius.
     """
-    # Select `t2m` values
+    # Select the 2m temperature values `t2m`
     temp_ds = temp_ds['t2m']
 
-    # Convert temperature to Celsius
-    temp_celsius = temp_ds - 273.15
-
-    # Calculate I (heat index)
-    # I = ((temp_celsius / 5.0) ** 1.514).sum('time')
-    I = ((temp_celsius / 5.0) ** 1.514).groupby("time.month").sum('time')
-    if time_scale >= 1:
-        # n-month scale SPEI
-        I = I.sum(dim='month')
-
-    # Calculate a
-    a = (6.75e-07 * I**3) - (7.71e-05 * I**2) + (1.792e-02 * I) + 0.49239
-
-    # Days in month
-    days_in_month = temp_celsius.time.dt.days_in_month
+    # Calculate head index `I`
+    I = calc_heat_index(temp_ds)
+    # Calculate the sensitivity of PET to the temperature `a`
+    a = calc_sensitivity(I)
 
     # Calculate PET
-    pet_ds: xr.DataArray = (16 * (10 * temp_celsius / I)
-                            ** a) * (days_in_month / 12)
-    # pet_ds = 16 * ((10 * temp_celsius / I) ** a).groupby('time.month')
-
-
-    if time_scale >= 1:
-        # # n-month scale SPEI
-        pet_ds = pet_ds.rolling(dim={"time": time_scale}, center=True).mean()
-        # pet_ds = pet_ds.sum(dim='month')
+    pet_ds = 16 * ((10 * temp_ds / I) ** a)
 
     return pet_ds
 
 
-def preprocess_pet(pet_ds: xr.DataArray, prec_ds: xr.DataArray):
-    # Select `precipitation` values
-    prec_ds = prec_ds['precipitation']
+def calc_heat_index(temp_ds):
+    """Calculate the heat index required for Thornthwaite PET calculation."""
+    I = ((temp_ds / 5) ** 1.514).sum(dim='time')
+    return I
 
+
+def calc_sensitivity(I):
+    a = (6.75e-07 * I**3) - (7.71e-05 * I**2) + (1.792e-02 * I) + 0.49239
+    return a
+
+
+def preprocess_pet(pet_ds: xr.DataArray, prec_ds: xr.DataArray):
     # Processing after calculation
     pet_ds = pet_ds.sel(expver=1)
-    pet_ds = pet_ds.transpose('time', 'lat', 'lon', 'month')
+    # pet_ds = pet_ds.transpose('time', 'lat', 'lon', 'month')
+    pet_ds = pet_ds.transpose('time', 'lat', 'lon')
 
     # Convert time dimensions type to datetime64[ns]
     pet_ds['time'] = pet_ds['time'].astype('datetime64[ns]')
 
-    pet = pet_ds.interp(lat=prec_ds.lat, lon=prec_ds.lon, method='linear')
+    pet = pet_ds.interp(lat=prec_ds['precipitation'].lat,
+                        lon=prec_ds['precipitation'].lon, method='linear')
 
-    return pet, prec_ds
+    return pet
 
 
-def calc_difference(prec_ds: xr.DataArray, pet_ds: xr.DataArray, time_scale: int) -> xr.DataArray:
-    if time_scale >= 1:
-        prec_ds = prec_ds.rolling(time=time_scale, center=True).mean()
-    return prec_ds - pet_ds
+def calc_difference(prec_ds: xr.DataArray, pet_ds: xr.DataArray, time_scale: int = 1) -> xr.DataArray:
+    # if time_scale > 1:
+    #     prec_ds = prec_ds.rolling(time=time_scale, center=True).mean()
+    return prec_ds['precipitation'] - pet_ds
+
+
+def calc_spei(D):
+    """
+    D: water balance (difference between precipitation and PET)
+    """
+    # Fit GEV to the Di values
+    # Flatten Di for fitting
+    D_flat = D.values.flatten()
+    D_flat = D_flat[np.isfinite(D_flat)]
+
+    # Fit GEV
+    shape, loc, scale = gev.fit(D_flat)
+
+    # Calculate standardized value z
+    z = (D - loc) / scale
+
+    # Calculate SPEI
+    condition = shape != 0
+    x = (1 + shape * z) ** (-1/shape)
+    y = np.exp(-z)
+    t = np.where(condition, x, y)
+    spei = -np.log(t)
+
+    return spei
 
 
 def calc_cdf_values(diff_ds: xr.DataArray) -> xr.DataArray:
@@ -243,27 +262,29 @@ def create_spei_ds(diff_ds, cdf_values):
     return xr.DataArray(ndtri(cdf_values), coords=diff_ds.coords, dims=diff_ds.dims)
 
 
-def spei_plot(spei_da: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
+def spei_plot(spei: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
               title, save_path=""):
     # Access the underlying numpy array for plotting
-    data = spei_da.values
-    print(data.shape)
-    data_2d = data.squeeze()
+    if not isinstance(spei, np.ndarray):
+        spei = spei.values
+        print(spei.shape)
+
+    spei = spei.squeeze()
 
     # If the data_array still isn't 2D because it contains non-singleton dimensions that weren't squeezed,
     # you may need to select a specific slice. For example, if the first and last dimensions are time and channel:
     # data_2d = data_array.isel(time=0, channel=0)
 
     # Ensure the data is 2D at this point
-    print(data_2d.ndim)
-    print(data_2d.shape)
+    print(spei.ndim)
+    print(spei.shape)
 
-    if data_2d.ndim != 2:
-        mean_arr = np.mean(data_2d, axis=0)
+    if spei.ndim != 2:
+        mean_arr = np.mean(spei, axis=0)
         final_mean = np.mean(mean_arr, axis=-1)
-        data_2d = final_mean
+        spei = final_mean
 
-    assert data_2d.ndim == 2, "Data is not 2D after squeezing/calculation mean."
+    assert spei.ndim == 2, "Data is not 2D after squeezing/calculation mean."
 
     colors = ['#8B1A1A', '#DE2929', '#F3641D', '#FDC404',
               '#9AFA94', '#03F2FD', '#12ADF3', '#1771DE', '#00008B']
@@ -277,7 +298,7 @@ def spei_plot(spei_da: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
 
     # Plot the data
     plt.figure(figsize=(10, 6))
-    plt.imshow(data_2d, extent=[lon_bounds[0], lon_bounds[1], lat_bounds[0], lat_bounds[1]],
+    plt.imshow(spei, extent=[lon_bounds[0], lon_bounds[1], lat_bounds[0], lat_bounds[1]],
                origin='lower', cmap=custom_cmap, vmin=-3, vmax=3)
 
     # Overlay the shapefile
@@ -297,18 +318,12 @@ def spei_plot(spei_da: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
     plt.show()
 
 
-
-
-
-
-
-
 # Define dates
 day = 1
-time_scale = 3
-date_target = datetime(2014, 5, day)
+time_scale = 1
+date_target = datetime(2014, 4, day)
 date_begin = date_target - relativedelta(months=time_scale-1)
-date_end = date_target 
+date_end = date_target
 
 # Precipitation
 prec_file_paths = generate_imerg_filenames(
@@ -335,17 +350,19 @@ temp_ds = spatial_subset(temp_ds, lat_bounds, lon_bounds)
 
 # Calculate PET (potential evapotranspiration)
 pet_ds = calc_pet_thornthwaite(temp_ds)
-pet_ds, prec_ds = preprocess_pet(pet_ds, prec_ds)
+pet_ds = preprocess_pet(pet_ds, prec_ds)
 
 # Calculate difference
 diff_ds = calc_difference(prec_ds, pet_ds, time_scale)
 
-# Calculate CDF values
-cdf_vals = calc_cdf_values(diff_ds)
+spei = calc_spei(diff_ds)
 
-spei_da = create_spei_ds(diff_ds, cdf_vals)
+# # Calculate CDF values
+# cdf_vals = calc_cdf_values(diff_ds)
+
+# spei_da = create_spei_ds(diff_ds, cdf_vals)
 
 # Create plot
 shape_file_path = '/home/jtrvz/Downloads/vg2500_geo84/vg2500_krs.shp'
-spei_plot(spei_da, shape_file_path, lon_bounds, lat_bounds,
-          f"SPEI Germany ({date_begin.strftime('%Y-%m')}-{date_end.strftime('%Y-%m')})", "test.png")
+spei_plot(spei, shape_file_path, lon_bounds, lat_bounds,
+          f"SPEI Germany ({date_begin.strftime('%Y-%m')}-{date_end.strftime('%Y-%m')})", "test2.png")
