@@ -6,12 +6,13 @@ import pandas as pd
 import geopandas as gpd
 from os.path import exists
 from os import remove
-from scipy.stats import genlogistic
+from scipy.stats import genlogistic, norm, fisk
 from scipy.stats import genextreme as gev
 from scipy.special import ndtri
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from os.path import exists
+from typing import Literal
 
 
 def generate_imerg_filenames(start_date: datetime, end_date: datetime, dir: str = ""):
@@ -164,23 +165,30 @@ def calc_pet_thornthwaite(temp_ds: xr.Dataset, time_scale: int = 1) -> xr.DataAr
     Calculate PET using the Thornthwaite equation.
     temp: Monthly average 2m temperature in Celsius.
     """
-    # Select the 2m temperature values `t2m`
-    temp_ds = temp_ds['t2m']
-
     # Calculate head index `I`
-    I = calc_heat_index(temp_ds)
+    I = calc_heat_index(temp_ds['t2m'])
     # Calculate the sensitivity of PET to the temperature `a`
     a = calc_sensitivity(I)
 
+    # Days in month
+    days_in_month = temp_ds['t2m'].time.dt.days_in_month
     # Calculate PET
-    pet_ds = 16 * ((10 * temp_ds / I) ** a)
+    # Assume month's day avg. is 30.437
+    avg_days_month = 30.437
+    pet_ds = 16 * ((10 * temp_ds['t2m'] / I) ** a) * (days_in_month / avg_days_month)
 
     return pet_ds
 
 
 def calc_heat_index(temp_ds: xr.DataArray) -> xr.DataArray:
     """Calculate the heat index required for Thornthwaite PET calculation."""
-    I = ((temp_ds / 5) ** 1.514).sum(dim='time')
+    # I = ((temp_ds / 5) ** 1.514).groupby("time.month").mean('time')
+    # I = ((temp_ds / 5) ** 1.514).sum(
+    #     dim=["lat", "lon"],
+    #     skipna=True,
+    #     keep_attrs=True,
+    # )
+    I = ((temp_ds / 5) ** 1.514)
     return I
 
 
@@ -199,7 +207,8 @@ def preprocess_pet(pet_ds: xr.DataArray, prec_ds: xr.DataArray):
     pet_ds['time'] = pet_ds['time'].astype('datetime64[ns]')
 
     pet = pet_ds.interp(lat=prec_ds['precipitation'].lat,
-                        lon=prec_ds['precipitation'].lon, method='linear')
+                        lon=prec_ds['precipitation'].lon,
+                        method='linear')
 
     return pet
 
@@ -210,17 +219,35 @@ def calc_difference(prec_ds: xr.DataArray, pet_ds: xr.DataArray, time_scale: int
     return prec_ds['precipitation'] - pet_ds
 
 
-def calc_spei(D: xr.DataArray):
+def calc_spei(D: xr.DataArray, distribution: Literal['gev', 'gl', 'll'] = "by_coords",):
     """
-    D: water balance (difference between precipitation and PET)
+    D:              water balance (difference between precipitation and PET)
+    distribution:   generalized extreme value = 'gev', generalized logistic distribution = 'gl', log-logistic distribution = 'll',
     """
-    # Fit GEV to the Di values
-    # Flatten Di for fitting
+    # Keep the original shape for reshaping later
+    original_shape = D.shape
+
+    # Flatten D for fitting and remove NaN and finite values
     D_flat = D.values.flatten()
-    D_flat = D_flat[np.isfinite(D_flat)]
+    D_flat_clean = D_flat[np.isfinite(D_flat)]
+
+    if distribution == 'gev':
+        spei = gev_distr(D_flat_clean)
+    elif distribution == 'll':
+        spei = ll_distr(D_flat_clean, original_shape)
+    elif distribution == 'gl':
+        spei = gl_distr(D_flat_clean)
+    else:
+        raise ValueError(
+            "Unsupported distribution. Choose 'gev', 'gl' or 'll'.")
+
+    return spei
+
+
+def gev_distr(D: xr.DataArray):
 
     # Fit GEV
-    shape, loc, scale = gev.fit(D_flat)
+    shape, loc, scale = gev.fit(D)
 
     # Calculate standardized value z
     z = (D - loc) / scale
@@ -230,9 +257,57 @@ def calc_spei(D: xr.DataArray):
     x = (1 + shape * z) ** (-1/shape)
     y = np.exp(-z)
     t = np.where(condition, x, y)
+
     spei = -np.log(t)
 
     return spei
+
+
+def ll_distr(D: xr.DataArray, original_shape):
+    # Fit the distribution
+    # Fisk is a form of the log-logistic distribution
+    shape, loc, scale = fisk.fit(D)
+
+    # Calculate SPEI
+    spei = fisk.cdf(D, shape, loc, scale)
+    spei = norm.ppf(spei)  # Convert to Z-scores
+
+    # Initialize an array of NaNs to place SPEI values, matching the original data shape
+    spei_full = np.full(D.shape, np.nan)
+    spei_full[np.isfinite(D)] = spei
+    # Reshape SPEI to the original data shape
+    spei_reshaped = spei_full.reshape(original_shape)
+    # Convert back to xarray DataArray, preserving coordinates and dimensions
+    spei = xr.DataArray(spei_reshaped, coords=D.coords, dims=D.dims)
+
+    return spei
+
+
+def gl_distr(D: xr.DataArray):
+    # Fit the generalized logistic distribution to the cleaned data
+    params = genlogistic.fit(D)
+
+    # Apply the CDF to the original data using the fitted parameters
+    # Note: We need to apply the CDF to each element in the original data array.
+    # This involves creating a function that can be applied over the DataArray.
+    cdf_applied = np.vectorize(lambda x: genlogistic.cdf(x, *params))
+
+    # Since we can't directly apply np.vectorize result on xarray DataArray, we use .map() method of xarray if available,
+    # or apply the function to the .values of the DataArray and then create a new DataArray from the result.
+    # Ensure the output has the same shape as the original DataArray.
+    cdf_values = xr.DataArray(
+        cdf_applied(diff_ds.values),
+        dims=diff_ds.dims,
+        coords=diff_ds.coords,
+    )
+
+    spei_da = xr.DataArray(
+        ndtri(cdf_values),
+        coords=diff_ds.coords,
+        dims=diff_ds.dims,
+    )
+
+    return spei_da
 
 
 def calc_cdf_values(diff_ds: xr.DataArray) -> xr.DataArray:
@@ -262,10 +337,12 @@ def create_spei_ds(diff_ds, cdf_values):
     return xr.DataArray(ndtri(cdf_values), coords=diff_ds.coords, dims=diff_ds.dims)
 
 
-def spei_plot(spei: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
+def spei_plot(spei: xr.DataArray | np.ndarray, shape_file_path, lon_bounds, lat_bounds,
               title, save_path=""):
+    print(spei.ndim)
+    print(spei.shape)
     # Access the underlying numpy array for plotting
-    if not isinstance(spei, np.ndarray):
+    if isinstance(spei, xr.DataArray):
         spei = spei.values
         print(spei.shape)
 
@@ -275,14 +352,42 @@ def spei_plot(spei: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
     # you may need to select a specific slice. For example, if the first and last dimensions are time and channel:
     # data_2d = data_array.isel(time=0, channel=0)
 
-    # Ensure the data is 2D at this point
     print(spei.ndim)
     print(spei.shape)
 
+    # Ensure the data is 2D
     if spei.ndim != 2:
-        mean_arr = np.mean(spei, axis=0)
-        final_mean = np.mean(mean_arr, axis=-1)
-        spei = final_mean
+        if spei.ndim > 2:
+            # spei = spei[-1, :, :]
+            # spei = np.nansum(spei, axis=0)  # along the `time` dimension
+            # Initialize an output array filled with NaNs of shape (lat, lon)
+            spei_sum = np.full(spei.shape[1:], np.nan)
+
+            # Iterate over each lat-lon position
+            for lat in range(spei.shape[1]):
+                for lon in range(spei.shape[2]):
+                    # Select the time series for this lat-lon position
+                    time_series = spei[:, lat, lon]
+                    # Ignore NaN inf and -inf values
+                    time_series = time_series[np.isfinite(time_series)]
+                    
+                    # Check if all values are NaN
+                    if np.all(np.isnan(time_series)):
+                        spei_sum[lat, lon] = np.nan
+                        # print("1: ", spei_sum[lat, lon])
+                        if lat >= 7.0 and lat <=8.0 and lon >= 47.0 and lon <= 48.0:
+                            print(f"1 - Lat:{lat},Lon:{lon} -> {spei_sum[lat, lon]}")
+                    else:
+                        # Use np.nansum to ignore NaNs if there's at least one non-NaN
+                        spei_sum[lat, lon] = np.nansum(time_series)
+                        # print("2: ", spei_sum[lat, lon])
+                        if lat >= 7.0 and lat <=8.0 and lon >= 47.0 and lon <= 48.0:
+                            print(f"2 - Lat:{lat},Lon:{lon} -> {spei_sum[lat, lon]}")
+            spei = spei_sum
+        else:
+            mean_arr = np.mean(spei, axis=0)
+            final_mean = np.mean(mean_arr, axis=-1)
+            spei = final_mean
 
     assert spei.ndim == 2, "Data is not 2D after squeezing/calculation mean."
 
@@ -320,9 +425,10 @@ def spei_plot(spei: xr.DataArray, shape_file_path, lon_bounds, lat_bounds,
 
 # Define dates
 day = 1
-time_scale = 1
-date_target = datetime(2014, 4, day)
+time_scale = 9
+date_target = datetime(2015, 12, day)
 date_begin = date_target - relativedelta(months=time_scale-1)
+print(date_begin)
 date_end = date_target
 
 # Precipitation
@@ -355,14 +461,16 @@ pet_ds = preprocess_pet(pet_ds, prec_ds)
 # Calculate difference
 diff_ds = calc_difference(prec_ds, pet_ds, time_scale)
 
-spei = calc_spei(diff_ds)
+spei = calc_spei(D=diff_ds,
+                 distribution="gl")
 
 # # Calculate CDF values
 # cdf_vals = calc_cdf_values(diff_ds)
 
 # spei_da = create_spei_ds(diff_ds, cdf_vals)
+# spei_da = create_spei_ds(diff_ds, cdf_vals)
 
 # Create plot
 shape_file_path = '/home/jtrvz/Downloads/vg2500_geo84/vg2500_krs.shp'
 spei_plot(spei, shape_file_path, lon_bounds, lat_bounds,
-          f"SPEI Germany ({date_begin.strftime('%Y-%m')}-{date_end.strftime('%Y-%m')})", "test2.png")
+          f"SPEI Germany ({date_begin.strftime('%Y-%m')}-{date_end.strftime('%Y-%m')})", f"test_{date_target.strftime('%Y%m%d')}.png")
