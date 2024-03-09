@@ -178,13 +178,13 @@ def calc_pet_thornthwaite(temp_ds: xr.Dataset, time_scale: int = 1) -> xr.DataAr
     return pet_ds
 
 
-def calc_heat_index(temp_ds):
+def calc_heat_index(temp_ds: xr.DataArray) -> xr.DataArray:
     """Calculate the heat index required for Thornthwaite PET calculation."""
     I = ((temp_ds / 5) ** 1.514).sum(dim='time')
     return I
 
 
-def calc_sensitivity(I):
+def calc_sensitivity(I: xr.DataArray) -> xr.DataArray:
     a = (6.75e-07 * I**3) - (7.71e-05 * I**2) + (1.792e-02 * I) + 0.49239
     return a
 
@@ -210,7 +210,7 @@ def calc_difference(prec_ds: xr.DataArray, pet_ds: xr.DataArray, time_scale: int
     return prec_ds['precipitation'] - pet_ds
 
 
-def calc_spei(D):
+def calc_spei(D: xr.DataArray):
     """
     D: water balance (difference between precipitation and PET)
     """
