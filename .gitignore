@@ -3,5 +3,25 @@ test.py
 data/
 data
 scratch/
-output/
+output*/
 archive/
+
+# Python
+__pycache__/
+.ipynb_checkpoints/
+
+# Generated files
+*.sqlite
+*.tfrecord
+*.asc
+*.png
+*.tif
+*.tiff
+*.nc
+*.nc4
+*.hdf
+*.h5
+*.hdf5
+*.hdf4
+*.h4
+*.aux.xml
