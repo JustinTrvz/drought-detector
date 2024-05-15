@@ -10,6 +10,9 @@ archive/
 __pycache__/
 .ipynb_checkpoints/
 
+# Config files
+config/data_paths.py
+
 # Generated files
 *.sqlite
 *.tfrecord
