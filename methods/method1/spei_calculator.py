@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 import spei_calc_multi as scm
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -36,7 +38,7 @@ class SPEICalculator:
     def __init__(self, begin_date: datetime, end_date: datetime,
                  time_scale: int, lat_bounds: list, lon_bounds: list,
                  prec_ds_dir: str, temp_ds_dir: str, save_dir: str):
-        print("Initializing SPEI calculator...")
+        print(f"Initializing {time_scale}-month SPEI calculator...")
         self.begin_date: datetime = begin_date  # Begin date of the calculation
         self.end_date: datetime = end_date  # End date of the calculation
         # n-month time scale (1, 3, 6, 9, 12, ...)
@@ -46,9 +48,9 @@ class SPEICalculator:
         self.prec_ds_dir: str = prec_ds_dir  # Directory with precipitation data
         self.temp_ds_dir: str = temp_ds_dir  # Directory with temperature data
         self.save_dir: str = save_dir  # Directory to save the output
-        if self.save_dir[-1] != "/":  
+        if self.save_dir[-1] != "/":
             self.save_dir += "/"  # Add "/" to the end of the path
-        print("Initialization done.")
+        print("Initialization SPEI calculator done.")
 
     def calculate(self) -> xr.Dataset:
         # Read nc files
@@ -76,7 +78,7 @@ class SPEICalculator:
             time_scale_temp = self.time_scale - 1
         else:
             time_scale_temp = 0
-        
+
         # Example: 3-month SPEI for 2014-08, window: 2014-06 to 2014-08 needed
         # e.g. begin_date = "2014-01", end_date = "2014-12", time_scale = 3
         #      windows_begin = "2014-01", window_end = "2014-03", target_date = "2014-04"
@@ -89,18 +91,28 @@ class SPEICalculator:
         print("Iterating over the time window...")
         counter = 0
         while window_end <= self.end_date:
+            counter += 1
+            if self.time_scale == 12 and window_end < datetime(2021, 11, 1):
+                print(f"Skip: {window_end.strftime('%Y-%m')}")
+                window_begin += relativedelta(months=1)
+                window_end += relativedelta(months=1)
+                print(f"End iteration #{counter}")
+                continue
+
             print(f"Calculating SPEI for {window_end.strftime('%Y-%m')}")
-            print(f"Window: {window_begin.strftime('%Y-%m')} - {window_end.strftime('%Y-%m')}")
+            print(
+                f"Window: {window_begin.strftime('%Y-%m')} - {window_end.strftime('%Y-%m')}")
             print(f"Begin iteration #{counter}")
-            
+
             # Slice datasets
             window_begin_last_year = window_begin - relativedelta(years=1)
-            last_year_temp_ds = self.temp_ds.sel(time=slice(window_begin_last_year.strftime('%Y-%m-%d'), window_begin.strftime('%Y-%m-%d')))
+            last_year_temp_ds = self.temp_ds.sel(time=slice(
+                window_begin_last_year.strftime('%Y-%m-%d'), window_begin.strftime('%Y-%m-%d')))
             prec_windowed_ds = self.prec_ds.sel(
                 time=slice(window_begin, window_end))
             temp_windowed_ds = self.temp_ds.sel(
                 time=slice(window_begin, window_end))
-            print("Slicing datasets done.")
+            print(f"Slicing datasets done. ({window_begin} - {window_end})")
 
             # Calculate PET
             pet_windowed_ds = self.calc_pet_thornthwaite(
@@ -108,55 +120,58 @@ class SPEICalculator:
                 prec_ds=prec_windowed_ds,
                 last_year_temp_ds=last_year_temp_ds,
             )
-            print("PET calculation done.")
+            print(f"PET calculation done. {window_begin} - {window_end})")
             # Save PET dataset
-            save_path = self.save_dir + f"pet_{window_end.strftime('%Y-%m')}.nc"
+            save_path = self.save_dir + \
+                f"pet_{self.time_scale}m_{window_end.strftime('%Y-%m')}.nc"
             pet_windowed_ds.to_netcdf(save_path)
             print(f"Saved PET to '{save_path}'.")
-            # Concatenate PET datasets
-            if self.pet_ds is None:
-                # First iteration
-                self.pet_ds = pet_windowed_ds
-            else:
-                # Concatenate new PET dataset
-                self.pet_ds = xr.concat([self.pet_ds, pet_windowed_ds], dim='time')
+            # # Concatenate PET datasets
+            # if self.pet_ds is None:
+            #     # First iteration
+            #     self.pet_ds = pet_windowed_ds
+            # else:
+            #     # Concatenate new PET dataset
+            #     self.pet_ds = xr.concat([self.pet_ds, pet_windowed_ds], dim='time')
 
             # Calculate difference
             diff_windowed_ds = self.calculate_difference(
                 prec_ds=prec_windowed_ds,
                 pet_ds=pet_windowed_ds,
-                time_scale=self.time_scale,
             )
             # Save difference dataset
-            save_path = self.save_dir + f"diff_{window_end.strftime('%Y-%m')}.nc"
+            save_path = self.save_dir + \
+                f"diff_{self.time_scale}m_{window_end.strftime('%Y-%m')}.nc"
             diff_windowed_ds.to_netcdf(save_path)
             print(f"Saved D to '{save_path}'.")
-            # Concatenate difference datasets
-            if self.diff_ds is None:
-                # First iteration
-                self.diff_ds = diff_windowed_ds
-            else:
-                # Concatenate new difference dataset
-                self.diff_ds = xr.concat([self.diff_ds, diff_windowed_ds], dim='time')
+            # # Concatenate difference datasets
+            # if self.diff_ds is None:
+            #     # First iteration
+            #     self.diff_ds = diff_windowed_ds
+            # else:
+            #     # Concatenate new difference dataset
+            #     self.diff_ds = xr.concat([self.diff_ds, diff_windowed_ds], dim='time')
 
             # Calculate SPEI
-            spei_windowed_ds = self.calc_spei(self.diff_ds)
+            spei_windowed_ds = self.calc_spei(diff_windowed_ds)
             # Save SPEI dataset
-            save_path = self.save_dir + f"spei_{window_end.strftime('%Y-%m')}.nc"
+            save_path = self.save_dir + \
+                f"spei_{self.time_scale}m_{window_end.strftime('%Y-%m')}.nc"
             spei_windowed_ds.to_netcdf(save_path)
             print(f"Saved SPEI to '{save_path}'.")
-            # Concatenate SPEI datasets
-            if self.spei_ds is None:
-                # First iteration
-                self.spei_ds = spei_windowed_ds
-            else:
-                # Concatenate new SPEI dataset
-                self.spei_ds = xr.concat([self.spei_ds, spei_windowed_ds], dim='time')
+            # # Concatenate SPEI datasets
+            # if self.spei_ds is None:
+            #     # First iteration
+            #     self.spei_ds = spei_windowed_ds
+            # else:
+            #     # Concatenate new SPEI dataset
+            #     self.spei_ds = xr.concat([self.spei_ds, spei_windowed_ds], dim='time')
 
             # Create plot
             shape_file_path = '/home/jtrvz/Downloads/vg2500_geo84/vg2500_krs.shp'
             title = f"{self.time_scale}-month SPEI Germany ({window_end.strftime('%Y-%m')})"
-            plot_save_path = self.save_dir + f"spei_{self.time_scale}-month_{window_end.strftime('%Y-%m')}.png"
+            plot_save_path = self.save_dir + \
+                f"spei_{self.time_scale}-month_{window_end.strftime('%Y-%m')}.png"
             scm.spei_plot(
                 spei=spei_windowed_ds,
                 shape_file_path=shape_file_path,
@@ -171,10 +186,11 @@ class SPEICalculator:
             window_begin += relativedelta(months=1)
             window_end += relativedelta(months=1)
             print(f"End iteration #{counter}")
-            counter += 1
-        print("Iteration over the time window done. Number of iterations: ", counter)
+        print(
+            f"Iteration over the time window done.({window_begin} - {window_end})\n")
+        print(f"Number of iterations: {counter}")
 
-        return self.spei_ds
+        # return self.spei_ds
 
     def read_nc_files(self, begin_date: datetime, end_date: datetime,
                       prec_ds_dir: str, temp_ds_dir: str):
@@ -222,19 +238,23 @@ class SPEICalculator:
 
     def calc_pet_thornthwaite(self, temp_ds: xr.Dataset, prec_ds: xr.Dataset,
                               last_year_temp_ds: xr.Dataset):
-        pet_ds, temp_ds = scm.calc_pet_thornthwaite(temp_ds, last_year_temp_ds)
+        pet_ds, temp_ds = scm.calc_pet_thornthwaite(
+            temp_ds=temp_ds,
+            last_year_temp_ds=last_year_temp_ds,
+            extended_version=False,
+        )
         print("Calculating PET Thornthwaite done.")
         pet_ds = scm.preprocess_pet(pet_ds, prec_ds)
         print("Preprocessing PET Thornthwaite done.")
         return pet_ds
 
-    def calculate_difference(self, prec_ds, pet_ds, time_scale):
+    def calculate_difference(self, prec_ds, pet_ds):
         diff_ds = scm.calc_difference(
-            prec_ds, pet_ds, time_scale)
+            prec_ds, pet_ds,)
         print("Calculating difference done.")
         return diff_ds
 
-    def calc_spei(self, diff_ds: xr.Dataset):
+    def calc_spei(self, diff_ds: xr.DataArray):
         spei_ds = scm.calc_spei(D=diff_ds, distribution="ll")
         print("Calculating SPEI done.")
         return spei_ds

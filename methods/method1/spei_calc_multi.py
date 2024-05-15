@@ -132,7 +132,6 @@ def preprocess_temp(temp_ds: xr.Dataset) -> xr.DataArray:
     temp_ds = temp_ds.rename({"latitude": "lat", "longitude": "lon"})
     temp_ds = temp_ds.sel(expver=1)
 
-
     # Convert time dimensions type to datetime64[ns]
     temp_ds['time'] = temp_ds['time'].astype('datetime64[ns]')
 
@@ -163,7 +162,8 @@ def spatial_subset(ds: xr.Dataset, lat_bounds: list, lon_bounds: list) -> xr.Dat
     # Select spatial subset
     return ds.sel(lat=slice(*lat_bounds), lon=slice(*lon_bounds))
 
-def calc_pet_thornthwaite(temp_ds: xr.Dataset, last_year_temp_ds: xr.Dataset):
+
+def calc_pet_thornthwaite(temp_ds: xr.Dataset, last_year_temp_ds: xr.Dataset, extended_version: bool = False):
     """
     Calculate PET using the Thornthwaite equation from a Dataset with
     monthly average 2m temperature in Celsius.
@@ -174,91 +174,77 @@ def calc_pet_thornthwaite(temp_ds: xr.Dataset, last_year_temp_ds: xr.Dataset):
     temp_ds['t2m'] = temp_ds['t2m'].where(cond=~nan_mask, other=np.nan)
     # Same for last year temperature dataset
     nan_mask = last_year_temp_ds["t2m"].isnull()
-    last_year_temp_ds['t2m'] = last_year_temp_ds['t2m'].where(cond=last_year_temp_ds['t2m'] >= 0, other=0)
-    last_year_temp_ds['t2m'] = last_year_temp_ds['t2m'].where(cond=~nan_mask, other=np.nan)
+    last_year_temp_ds['t2m'] = last_year_temp_ds['t2m'].where(
+        cond=last_year_temp_ds['t2m'] >= 0, other=0)
+    last_year_temp_ds['t2m'] = last_year_temp_ds['t2m'].where(
+        cond=~nan_mask, other=np.nan)
 
     # Calculate the heat index I from the mean temperature
     I = calc_heat_index(last_year_temp_ds['t2m'])
-    # if I.all() == 0:
-    #     print("I is zero.")
-    #     return xr.full_like(temp_ds['t2m'], fill_value=np.nan), temp_ds  # Return NaN if I is zero
 
     # Calculate the coefficient 'a' from I
     a = calc_sensitivity(I)
 
-    # Calculate PET using the Thornthwaite equation
-    # PET = 16 * (10 * temp_ds['t2m'] / I) ** a * (temp_ds['t2m'].time.dt.daysinmonth / 30)
-    # temp_ds = temp_ds.sel(expver=1)
-    # I = I.sel(expver=1)
-    # a = a.sel(expver=1)
-    PET = 16 * (10 * temp_ds['t2m'] / I) ** a
+    if extended_version:
+        # Calculate monthly correction factor for day length
+        L = calc_correction_factor(temp_ds)
+        # Calculate PET using the Thornthwaite equation
+        PET = 16 * (10 * temp_ds['t2m'] / I) ** a * L
+    else:
+        PET = 16 * (10 * temp_ds['t2m'] / I) ** a
+
+    # Set name of the xarray.DataArray variable
+    PET.name = "pet"
 
     return PET, temp_ds
 
-# def calc_pet_thornthwaite(temp_ds: xr.Dataset) -> tuple[xr.DataArray, xr.DataArray]:
-#     """
-#     Calculate PET using the Thornthwaite equation.
-#     temp: Monthly average 2m temperature in Celsius.
-#     """
-#     # Select values from "temp_ds" that are negative and set them to 0.
-#     nan_mask = temp_ds["t2m"].isnull()
-#     temp_ds['t2m'] = temp_ds['t2m'].where(cond=temp_ds['t2m'] >= 0, other=0)
-#     temp_ds['t2m'] = temp_ds['t2m'].where(cond=~nan_mask, other=np.nan)
 
-#     # Calculate head index `I`
-#     I = calc_heat_index(temp_ds['t2m'])
-#     # Calculate the sensitivity of PET to the temperature `a`
-#     a = calc_sensitivity(I)
-#     # Sun light hours
-#     N = 12  # assume 12 hours of sunlight
-#     # Days in month
-#     NDM = temp_ds['t2m'].time.dt.days_in_month
+def calc_correction_factor(temp_ds):
+    # Get month number from data
+    months = temp_ds['time'].dt.month
 
-#     # # Calculate PET
-#     # # Assume month's day avg. is 30.437
-#     # NDM = 30.437  # average days in a month
-#     pet_ds = 16 * ((10 * temp_ds['t2m'] / I) ** a) * (NDM / 30)
-#     # pet_ds = 16 * ((10 * temp_ds['t2m'] / I) ** a) * (N/12) * (NDM / 30)
+    # Apply calculate_day_length for each latitude and month
+    day_length = xr.apply_ufunc(
+        calculate_day_length,
+        temp_ds['lat'],
+        months,
+        vectorize=True,
+    )
 
-#     # # Modify the calculation of PET based on the Thornthwaite formulation
-#     # pet_ds = xr.where(
-#     #     temp_ds['t2m'] < 0,
-#     #     0,
-#     #     pet_ds,
-#     # )
-#     # pet_ds = xr.where(
-#     #     (temp_ds['t2m'] >= 0) & (temp_ds['t2m'] <= 26.5),
-#     #     16 * (N/12) * (NDM / 30) * (10 * temp_ds['t2m'] / I) ** a,
-#     #     pet_ds,
-#     # )
-#     # pet_ds = xr.where(
-#     #     temp_ds['t2m'] > 26.5,
-#     #     N/360 * (-415.85 + 32.24 * temp_ds['t2m'] - 0.43 * temp_ds['t2m'] ** 2),
-#     #     pet_ds,
-#     # )
+    # Calculate L
+    L = (1 / 12) * (day_length / 12) * day_length**2
 
-#     return pet_ds, temp_ds
+    return L
 
 
-# def calc_heat_index(last_year_temp_ds: xr.DataArray) -> xr.DataArray:
-#     """
-#     Calculate the heat index required for Thornthwaite PET calculation.
+def calculate_day_length(lat, month):
+    pi = np.pi
+    degrees_to_radians = pi / 180.0
 
-#     :param temp_ds: Monthly average 2m temperature in Celsius.
-#     """
-#     # I = ((temp_ds / 5) ** 1.514).groupby("time.month").mean('time')
-#     # I = ((temp_ds / 5) ** 1.514).sum(
-#     #     dim=["lat", "lon"],
-#     #     skipna=True,
-#     #     keep_attrs=True,
-#     # )
-#     last_year_temp_ds = last_year_temp_ds.where(last_year_temp_ds >= 0, 0)
-#     last_year_temp_ds.to_netcdf("last_year_temp_ds.nc")
-#     print("* * * * * * * * * * * * ")
-#     print("last_year_temp_ds: ", last_year_temp_ds)
-#     print("* * * * * * * * * * * * ")
-#     I = ((last_year_temp_ds / 5) ** 1.514).sum(dim="time")
-#     return I
+    # Approximate day of the year for the middle of each month
+    middle_of_month = [15, 45, 74, 105, 135, 162, 198, 228, 258, 288, 319, 344]
+
+    # Calculate solar declination using approximate day of the year
+    delta = 23.45 * np.sin(degrees_to_radians *
+                           (360 * (284 + np.array(middle_of_month)) / 365))
+
+    # Convert latitude and declination to radians
+    lat_rad = lat * degrees_to_radians
+    # month-1 to adjust Python's 0-indexing
+    delta_rad = delta[month-1] * degrees_to_radians
+
+    # Calculate hour angle at sunrise/sunset
+    cos_omega = -np.tan(lat_rad) * np.tan(delta_rad)
+    # Ensure the values are within the valid range for acos
+    cos_omega = np.clip(cos_omega, -1, 1)
+    omega = np.arccos(cos_omega)
+
+    # Calculate day length in hours
+    day_length = (2 * omega * 24) / (2 * pi)
+
+    return day_length
+
+
 def calc_heat_index(last_year_temp_ds: xr.DataArray) -> xr.DataArray:
     """
     Calculate the heat index required for Thornthwaite PET calculation.
@@ -300,10 +286,15 @@ def preprocess_pet(pet_ds: xr.DataArray, prec_ds: xr.DataArray):
     return pet
 
 
-def calc_difference(prec_ds: xr.DataArray, pet_ds: xr.DataArray, time_scale: int = 1) -> xr.DataArray:
+def calc_difference(prec_ds: xr.DataArray, pet_ds: xr.DataArray) -> xr.DataArray:
     # if time_scale > 1:
     #     prec_ds = prec_ds.rolling(time=time_scale, center=True).mean()
-    return prec_ds['precipitation'] - pet_ds
+    D = prec_ds['precipitation'] - pet_ds
+
+    # Set name of the xarray.DataArray variable
+    # D.name = "diff"
+
+    return D
 
 
 def calc_spei(D: xr.DataArray, distribution: Literal['gev', 'gl', 'll'] = "ll") -> xr.DataArray:
@@ -325,6 +316,9 @@ def calc_spei(D: xr.DataArray, distribution: Literal['gev', 'gl', 'll'] = "ll") 
     else:
         raise ValueError(
             "Unsupported distribution. Choose 'gev', 'gl' or 'll'.")
+
+    # Set name of the xarray.DataArray variable
+    spei.name = "spei"
 
     return spei
 
@@ -437,86 +431,45 @@ def calc_cdf_values(D_ds: xr.DataArray) -> xr.DataArray:
 
 def spei_plot(spei: xr.DataArray | np.ndarray, shape_file_path, lon_bounds, lat_bounds,
               title, save_path="", show=True):
-    print(spei.ndim)
-    print(spei.shape)
-    # Access the underlying numpy array for plotting
-    if isinstance(spei, xr.DataArray):
-        spei = spei.values
-        print(spei.shape)
+    # Select the first time slice
+    spei_slice = spei.isel(time=0)
 
-    spei = spei.squeeze()
-
-    # If the data_array still isn't 2D because it contains non-singleton dimensions that weren't squeezed,
-    # you may need to select a specific slice. For example, if the first and last dimensions are time and channel:
-    # data_2d = data_array.isel(time=0, channel=0)
-    print(spei.ndim)
-    print(spei.shape)
-
-    # Ensure the data is 2D
-    if spei.ndim != 2:
-        if spei.ndim > 2:
-            # spei = spei[-1, :, :]
-            # spei = np.nansum(spei, axis=0)  # along the `time` dimension
-            # Initialize an output array filled with NaNs of shape (lat, lon)
-            spei_sum = np.full(spei.shape[1:], np.nan)
-
-            # Iterate over each lat-lon position
-            for lat in range(spei.shape[1]):
-                for lon in range(spei.shape[2]):
-                    # Select the time series for this lat-lon position
-                    time_series = spei[:, lat, lon]
-                    # Ignore NaN inf and -inf values
-                    time_series = time_series[np.isfinite(time_series)]
-
-                    # Check if all values are NaN
-                    if np.all(np.isnan(time_series)):
-                        spei_sum[lat, lon] = np.nan
-                        # print("1: ", spei_sum[lat, lon])
-                        if lat >= 7.0 and lat <= 8.0 and lon >= 47.0 and lon <= 48.0:
-                            print(
-                                f"1 - Lat:{lat},Lon:{lon} -> {spei_sum[lat, lon]}")
-                    else:
-                        # Use np.nansum to ignore NaNs if there's at least one non-NaN
-                        spei_sum[lat, lon] = np.nansum(time_series)
-                        # print("2: ", spei_sum[lat, lon])
-                        if lat >= 7.0 and lat <= 8.0 and lon >= 47.0 and lon <= 48.0:
-                            print(
-                                f"2 - Lat:{lat},Lon:{lon} -> {spei_sum[lat, lon]}")
-            spei = spei_sum
-        else:
-            mean_arr = np.mean(spei, axis=0)
-            final_mean = np.mean(mean_arr, axis=-1)
-            spei = final_mean
-
-    assert spei.ndim == 2, "Data is not 2D after squeezing/calculation mean."
-
+    # Define a custom colormap
     colors = ['#8B1A1A', '#DE2929', '#F3641D', '#FDC404',
               '#9AFA94', '#03F2FD', '#12ADF3', '#1771DE', '#00008B']
-    spei_cmap = LinearSegmentedColormap.from_list(
-        'spei_cmap', colors, N=1000)
-    spei_norm = Normalize(vmin=-2.0, vmax=2.0)  # Normalize from -2.0 to 2.0
+    spei_cmap = LinearSegmentedColormap.from_list('spei_cmap', colors, N=1000)
+    spei_norm = Normalize(vmin=-2.0, vmax=2.0)
 
-    # Assuming 'data_2d' is your 2D data array and 'spei_cmap' is your colormap
     # Load the shapefile
     region_shp = gpd.read_file(shape_file_path)
     region_shp = region_shp.to_crs('EPSG:4326')
 
-    # Plot the data
+    # Set up the plot
     plt.figure(figsize=(10, 6))
-    plt.imshow(spei, extent=[lon_bounds[0], lon_bounds[1], lat_bounds[0], lat_bounds[1]],
-               origin='lower',
-               cmap=spei_cmap,
-               norm=spei_norm,
-               )
+    # Use imshow with xarray's plotting interface for correct axis handling
+    # You need to specify 'lon' and 'lat' correctly based on your DataArray's coordinate names
+    ax = plt.gca()
+
+    lon_range = spei_slice.lon.max() - spei_slice.lon.min()
+    lat_range = spei_slice.lat.max() - spei_slice.lat.min()
+    aspect_ratio = lon_range / lat_range
+
+    im = ax.imshow(spei_slice.values, cmap=spei_cmap, norm=spei_norm,
+                   extent=[spei_slice.lon.min(), spei_slice.lon.max(),
+                           spei_slice.lat.min(), spei_slice.lat.max()],
+                   origin='lower', interpolation='none', aspect=aspect_ratio)  # 'extent' helps align the axes
 
     # Overlay the shapefile
     region_shp.boundary.plot(ax=plt.gca(), linewidth=0.5, edgecolor='black')
 
-    # Add a colorbar and labels
-    plt.colorbar(label='SPEI')
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, label='SPEI')
+    cbar.set_label('SPEI', rotation=270, labelpad=15)
+
+    # Add titles and labels
     plt.title(title)
-    plt.xlabel('Longitude (Degrees East)')
-    plt.ylabel('Latitude (Degrees North)')
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
 
     # Save plot
     if save_path != "":
@@ -525,3 +478,5 @@ def spei_plot(spei: xr.DataArray | np.ndarray, shape_file_path, lon_bounds, lat_
     # Show plot
     if show:
         plt.show()
+
+    # plt.close()

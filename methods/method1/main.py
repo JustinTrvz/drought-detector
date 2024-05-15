@@ -3,17 +3,21 @@ from datetime import datetime
 
 begin = datetime(2014, 1, 1)
 end = datetime(2023, 8, 1)
-spei_calc = SPEICalculator(
-    begin_date=begin,
-    end_date=end,
-    time_scale=1,
-    lat_bounds=[47.0, 55.5],
-    lon_bounds=[5.5, 15.5],
-    prec_ds_dir="/media/jtrvz/1tb/drought_data/precipitation/nasa_gpm/Global/monthly/netcdf/avg",
-    temp_ds_dir="/media/jtrvz/1tb/drought_data/temperature/era5/Global/monthly/netcdf/avg/",
-    save_dir="/media/jtrvz/1tb/drought_data/spei/spei_1"
-)
-spei_ds = spei_calc.calculate()
+# end = datetime(2016, 1, 1)
+time_scales = [1, 3, 6, 9, 12]  # n-month SPEI
+method="thornthwaite"
+for time_scale in time_scales:
+    spei_calc = SPEICalculator(
+        begin_date=begin,
+        end_date=end,
+        time_scale=time_scale,
+        lat_bounds=[47.0, 55.5],
+        lon_bounds=[5.5, 15.5],
+        prec_ds_dir="/media/jtrvz/1tb/drought_data/precipitation/nasa_gpm/Global/monthly/netcdf/avg",
+        temp_ds_dir="/media/jtrvz/1tb/drought_data/temperature/era5/Global/monthly/netcdf/avg/",
+        save_dir=f"/media/jtrvz/1tb/drought_data/spei/{method}/spei_{time_scale}"
+    )
+    spei_ds = spei_calc.calculate()
 
 # import spei_calc_multi as scm
 # from datetime import datetime
