@@ -54,21 +54,21 @@ For the detection of a drought the SPEI is used. The SPEI indicates a drought, n
 | 2.0 <= x    | Extremely wet |
 
 ## Drought detection - Jupyter Notebooks
-1. **SPEI Meteorological - Calculation:** [methods/meteorological/spei_meteorological.ipynb](methods/meteorological/spei_meteorological.ipynb)
+1. **SPEI Meteorological - Calculation:** [methods/meteorological/spei_meteorological.ipynb](methods/meteorological/spei_meteorological.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/methods/meteorological/spei_meteorological.ipynb)]
     - In this notebook the SPEI will be calculated for the region of Germany using meteorological data from the [DWD](https://opendata.dwd.de/climate_environment/CDC/) (*Deutscher Wetterdienst*).
     - For each SPEI result using a different PET equation a map plot of Germany has been created to demonstrate how a SPEI map looks like.
     - All SPEI results were visually compared to the [Global SPEI Dataset](https://spei.csic.es/database.html) which has been created by the inventors of the SPEI index [Vicente-Serrano et al.](https://spei.csic.es/index.html).
 
-2. **SPEI Meteorological - Comparison:** [ddata_comparison/compare_spei_meteorologcial.ipynb](data_comparison/compare_spei_meteorologcial.ipynb)
+2. **SPEI Meteorological - Comparison:** [ddata_comparison/compare_spei_meteorologcial.ipynb](data_comparison/compare_spei_meteorologcial.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/data_comparison/compare_spei_meteorologcial.ipynb)]
     - In the following notebook the calculated SPEI with the different PET equations using meteorological data is compared to the offical [Global SPEI database](https://spei.csic.es/database.html). The PET equations "FAO 56 Penman-Monteith", "Thornthwaite", "Priestley-Taylor" and "Hargreaves" were used for the calculation.
     - The minimum, maximum and average SPEI values are compared. Aswell as the distribution of the SPEI values.
 
-3. **SPEI Remote Sensing - Calculation:** [methods/method1/spei_calc_multi_months.ipynb](methods/method1/spei_calc_multi_months.ipynb)
+3. **SPEI Remote Sensing - Calculation:** [methods/method1/spei_calc_multi_months.ipynb](methods/method1/spei_calc_multi_months.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/methods/method1/spei_calc_multi_months.ipynb)]
     - In this notebook the SPEI will be calculated for the region of Germany using remote sensing data from the [NASA-GPM mission](https://gpm.nasa.gov/missions/GPM) and the [ERA5-Land reanalysis](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-land-monthly-means?tab=overview).
     - For each SPEI result using a different PET equation a map plot of Germany has been created to demonstrate how a SPEI map looks like.
     - Only the "Thornthwaite" and the extended "Thornthwaite" PET equations were used for the calculation because the used datasets only provide temperature and precipitation values.
 
-4. **SPEI Remote Sensing - Comparison:** [data_comparison/compare_spei_remote_sensing.ipynb](data_comparison/compare_spei_remote_sensing.ipynb)
+4. **SPEI Remote Sensing - Comparison:** [data_comparison/compare_spei_remote_sensing.ipynb](data_comparison/compare_spei_remote_sensing.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/data_comparison/compare_spei_remote_sensing.ipynb)]
     - In the following notebook the calculated SPEI with the different PET equations using remote sensing data is compared to the offical [Global SPEI database](https://spei.csic.es/database.html). 
     - The minimum, maximum and average SPEI values are compared. Aswell as the distribution of the SPEI values.
 
