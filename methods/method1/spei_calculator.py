@@ -169,7 +169,7 @@ class SPEICalculator:
             #     self.spei_ds = xr.concat([self.spei_ds, spei_windowed_ds], dim='time')
 
             # Create plot
-            shape_file_path = f'{EXT_STORAGE_DIR}/vg2500_geo84/vg2500_krs.shp'
+            shape_file_path = f'{EXT_STORAGE_DIR}/shape_ger/vg2500_krs.shp'
             title = f"{self.time_scale}-month SPEI Germany ({window_end.strftime('%Y-%m')})"
             plot_save_path = self.save_dir + \
                 f"spei_{self.time_scale}-month_{window_end.strftime('%Y-%m')}.png"
