@@ -85,7 +85,8 @@ for time_scale in time_scales:
 #     spei.to_netcdf(f"spei_{time_scale}/spei_{date_target.strftime('%Y%m')}.nc")
 
 #     # Create plot
-#     shape_file_path = '/home/jtrvz/Downloads/vg2500_geo84/vg2500_krs.shp'
+#     shape_file_path = f'{EXT_STORAGE_DIR}/vg2500_geo84/vg2500_krs.shp'
+
 #     title = f"{time_scale}-month SPEI Germany ({date_target.strftime('%Y-%m')})"
 
 #     scm.spei_plot(
