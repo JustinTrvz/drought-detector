@@ -1,5 +1,6 @@
 import cdsapi
 from datetime import datetime, timedelta
+from config.data_paths import EXT_STORAGE_DIR
 
 file_extensions = {
     "grib": ".grib",
@@ -146,7 +147,7 @@ def parse_days(days):
 
 # Example usage:
 # get_data(year=2023, month=1, days=1, hours=0, variable='2m_temperature',
-#          save_dir="/home/jtrvz/Documents/drought_data/temperature/era5/api")
+#          save_dir="{EXT_STORAGE_DIR}/drought_data/temperature/era5/api")
 start_date = datetime(2020, 1, 1)
 end_date = datetime(2023, 12, 31)
 get_data_range_hourly(
@@ -162,7 +163,7 @@ get_data_range_hourly(
         'surface_pressure',
         'total_precipitation',
     ],
-    save_dir='/media/jtrvz/1tb/era5',
+    save_dir=f'{EXT_STORAGE_DIR}/era5',
     area=[
         55.09, 5.94,
         47.27, 15.05,

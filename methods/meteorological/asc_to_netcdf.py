@@ -7,8 +7,8 @@ from netCDF4 import Dataset
 
 # ASC file
 header = {}
-asc_file = '/home/jtrvz/Downloads/grids_germany_monthly_precipitation_202312/RSMS_12_2023_01.asc'
-prj_file = '/home/jtrvz/Downloads/gk3.prj'
+asc_file = 'grids_germany_monthly_precipitation_202312/RSMS_12_2023_01.asc'
+prj_file = 'gk3.prj'
 nc_file = asc_file.replace('.asc', '.nc')
 
 # Read the spatial reference from the PRJ file

@@ -1,5 +1,6 @@
 from spei_calculator import SPEICalculator
 from datetime import datetime
+from config.data_paths import EXT_STORAGE_DIR
 
 begin = datetime(2014, 1, 1)
 end = datetime(2023, 8, 1)
@@ -13,9 +14,9 @@ for time_scale in time_scales:
         time_scale=time_scale,
         lat_bounds=[47.0, 55.5],
         lon_bounds=[5.5, 15.5],
-        prec_ds_dir="/media/jtrvz/1tb/drought_data/precipitation/nasa_gpm/Global/monthly/netcdf/avg",
-        temp_ds_dir="/media/jtrvz/1tb/drought_data/temperature/era5/Global/monthly/netcdf/avg/",
-        save_dir=f"/media/jtrvz/1tb/drought_data/spei/{method}/spei_{time_scale}"
+        prec_ds_dir=f"{EXT_STORAGE_DIR}drought_data/precipitation/nasa_gpm/Global/monthly/netcdf/avg",
+        temp_ds_dir=f"{EXT_STORAGE_DIR}/drought_data/temperature/era5/Global/monthly/netcdf/avg/",
+        save_dir=f"{EXT_STORAGE_DIR}/drought_data/spei/{method}/spei_{time_scale}"
     )
     spei_ds = spei_calc.calculate()
 
@@ -42,10 +43,10 @@ for time_scale in time_scales:
 
 #     # Precipitation
 #     prec_file_paths = scm.generate_imerg_filenames(
-#         date_begin, date_end, "/media/jtrvz/1tb/drought_data/precipitation/nasa_gpm/Global/monthly/netcdf/avg")
+#         date_begin, date_end, f"{EXT_STORAGE_DIR}/drought_data/precipitation/nasa_gpm/Global/monthly/netcdf/avg")
 #     # Temperature
 #     temp_file_paths = scm.generate_t2m_filenames(
-#         date_end - relativedelta(month=12), date_end, "/media/jtrvz/1tb/drought_data/temperature/era5/Global/monthly/netcdf/avg/", "t2m")
+#         date_end - relativedelta(month=12), date_end, "{EXT_STORAGE_DIR}/drought_data/temperature/era5/Global/monthly/netcdf/avg/", "t2m")
 #     # last 12 month needed for heat index calculation
 
 #     # if len(prec_file_paths) != len(temp_file_paths):
