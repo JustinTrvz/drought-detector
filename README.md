@@ -53,6 +53,12 @@ For the detection of a drought the SPEI is used. The SPEI indicates a drought, n
 | 1.50 <= x <= 1.99    | Severely wet      |
 | 2.0 <= x    | Extremely wet |
 
+![Visual comparison between the Thornthwaite, FAO-56-Penman-Monteith, Priestley-Taylor and Global SPEI Database plot results which have been calculated using meteorological weather stations's data from the DWD.](images/spei_comparison/tw_fao_pt_gsd_spei_ml_plot_comparison.png) \
+*Visual comparison between the Thornthwaite, FAO-56-Penman-Monteith, Priestley-Taylor and Global SPEI Database plot results which have been calculated using meteorological weather stations's data from the DWD.*
+
+![SPEI Calculation using remote sensing data from NASA-GPM and ERA-5 Land for September 2014](images/spei_comparison/tw_spei_rs_2022_germany.png) \
+*SPEI calculation's plot result using remote sensing data from NASA-GPM and ERA-5 Land for September 2014.*
+
 ## Drought detection - Jupyter Notebooks
 1. **SPEI Meteorological - Calculation:** [methods/meteorological/spei_meteorological.ipynb](methods/meteorological/spei_meteorological.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/methods/meteorological/spei_meteorological.ipynb)]
     - In this notebook the SPEI will be calculated for the region of Germany using meteorological data from the [DWD](https://opendata.dwd.de/climate_environment/CDC/) (*Deutscher Wetterdienst*).
