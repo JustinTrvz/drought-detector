@@ -84,7 +84,7 @@ For the prediction of the SPEI, a Gradient Boosting Regressor is used.
 A Gradient Boosting Tree (GBT) is a machine learning technique used for regression and classification tasks. It builds an ensemble of decision trees in a sequential manner, where each new tree corrects the errors made by the previous trees. This is achieved by minimizing a loss function through gradient descent, allowing the model to improve accuracy iteratively. The final model is a weighted sum of the individual trees, leading to robust and high-performing predictions.
 
 ## Drought prediction - Jupyter Notebooks
-1. **Gradient Boosting Tree - Prediction:** [methods/method2/gbt_spei.ipynb](methods/method2/gbt.ipynb)
+1. **Gradient Boosting Tree - Prediction:** [methods/method2/gbt_spei.ipynb](methods/method2/gbt_spei.ipynb)
     - The Jupyer Notebook demonstrates how a Gradient Boosting Tree can be used to predict the SPEI for the region of Germany.
     - Boxplots were created to visualize the prediction results distribution and the outliers.
 2. **Gradient Boosting Tree - Comparison:** [methods/method2/gbt_comparison.ipynb](methods/method2/gbt_comparison.ipynb)
