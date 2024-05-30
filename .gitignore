@@ -5,7 +5,6 @@ data
 scratch/
 output*/
 archive/
-
 # Python
 __pycache__/
 .ipynb_checkpoints/
@@ -17,11 +16,10 @@ config/data_paths.py
 *.sqlite
 *.tfrecord
 *.asc
-*.png
 *.tif
 *.tiff
-*.nc
-*.nc4
+# *.nc
+# *.nc4
 *.hdf
 *.h5
 *.hdf5
