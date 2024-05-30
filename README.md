@@ -53,10 +53,10 @@ For the detection of a drought the SPEI is used. The SPEI indicates a drought, n
 | 1.50 <= x <= 1.99    | Severely wet      |
 | 2.0 <= x    | Extremely wet |
 
-![Visual comparison between the Thornthwaite, FAO-56-Penman-Monteith, Priestley-Taylor and Global SPEI Database plot results which have been calculated using meteorological weather stations's data from the DWD.](images/spei_comparison/tw_fao_pt_gsd_spei_ml_plot_comparison.png) \
+<img src="images/spei_comparison/tw_fao_pt_gsd_spei_ml_plot_comparison.png" alt="Visual comparison between the Thornthwaite, FAO-56-Penman-Monteith, Priestley-Taylor and Global SPEI Database plot results which have been calculated using meteorological weather stations's data from the DWD." width="500"/> \
 *Visual comparison between the Thornthwaite, FAO-56-Penman-Monteith, Priestley-Taylor and Global SPEI Database plot results which have been calculated using meteorological weather stations's data from the DWD.*
 
-![SPEI Calculation using remote sensing data from NASA-GPM and ERA-5 Land for September 2014](images/spei_comparison/tw_spei_rs_2022_germany.png) \
+<img src="images/spei_comparison/tw_spei_rs_2022_germany.png" alt="SPEI Calculation using remote sensing data from NASA-GPM and ERA-5 Land for September 2014" width="500"> \
 *SPEI calculation's plot result using remote sensing data from NASA-GPM and ERA-5 Land for September 2014.*
 
 ## Drought detection - Jupyter Notebooks
@@ -99,27 +99,27 @@ Due to licensing reasons I cannot host the datasets I used in this project, so f
 
 ## Setup - Environment
 1. Install Python >= 3.10, Python Venv and Pip.
-```bash
-sudo apt install python3 python3-venv python3-pip
-```
+    ```bash
+    sudo apt install python3 python3-venv python3-pip
+    ```
 2. Clone the Git repository via HTTPS or SSH:
-```bash
-## via HTTPS
-git clone https://github.com/JustinTrvz/drought-detector.git
-```
-```bash
-# via SSH
-git clone git@github.com:JustinTrvz/drought-detector.git
-```
+    ```bash
+    ## via HTTPS
+    git clone https://github.com/JustinTrvz/drought-detector.git
+    ```
+    ```bash
+    # via SSH
+    git clone git@github.com:JustinTrvz/drought-detector.git
+    ```
 3. Create a virtual environment:
-```bash
-python -m venv venv
-```
+    ```bash
+    python -m venv venv
+    ```
 3. Install the required packages:
-```bash
-pip install -r requirements1.txt
-pip install -r requirements2.txt
-```
+    ```bash
+    pip install -r requirements1.txt
+    pip install -r requirements2.txt
+    ```
 4. Run the notebooks in the `methods` folder. Modify the notebooks to your needs if you want to.
 
 ## Setup - Configure datapaths
