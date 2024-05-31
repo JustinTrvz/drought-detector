@@ -65,11 +65,11 @@ For the detection of a drought the SPEI is used. The SPEI indicates a drought, n
     - For each SPEI result using a different PET equation a map plot of Germany has been created to demonstrate how a SPEI map looks like.
     - All SPEI results were visually compared to the [Global SPEI Dataset](https://spei.csic.es/database.html) which has been created by the inventors of the SPEI index [Vicente-Serrano et al.](https://spei.csic.es/index.html).
 
-2. **SPEI Meteorological - Comparison:** [ddata_comparison/compare_spei_meteorologcial.ipynb](data_comparison/compare_spei_meteorologcial.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/data_comparison/compare_spei_meteorologcial.ipynb)]
+2. **SPEI Meteorological - Comparison:** [data_comparison/compare_spei_meteorologcial.ipynb](data_comparison/compare_spei_meteorologcial.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/data_comparison/compare_spei_meteorologcial.ipynb)]
     - In the following notebook the calculated SPEI with the different PET equations using meteorological data is compared to the offical [Global SPEI database](https://spei.csic.es/database.html). The PET equations "FAO 56 Penman-Monteith", "Thornthwaite", "Priestley-Taylor" and "Hargreaves" were used for the calculation.
     - The minimum, maximum and average SPEI values are compared. Aswell as the distribution of the SPEI values.
 
-3. **SPEI Remote Sensing - Calculation:** [methods/method1/spei_calc_multi_months.ipynb](methods/method1/spei_calc_multi_months.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/methods/method1/spei_calc_multi_months.ipynb)]
+3. **SPEI Remote Sensing - Calculation:** [methods/remote_sensing/spei_calc_multi_months.ipynb](methods/remote_sensing/spei_calc_multi_months.ipynb) [[Git](https://github.com/JustinTrvz/drought-detector/blob/develop/methods/remote_sensing/spei_calc_multi_months.ipynb)]
     - In this notebook the SPEI will be calculated for the region of Germany using remote sensing data from the [NASA-GPM mission](https://gpm.nasa.gov/missions/GPM) and the [ERA5-Land reanalysis](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-land-monthly-means?tab=overview).
     - For each SPEI result using a different PET equation a map plot of Germany has been created to demonstrate how a SPEI map looks like.
     - Only the "Thornthwaite" and the extended "Thornthwaite" PET equations were used for the calculation because the used datasets only provide temperature and precipitation values.
@@ -84,10 +84,10 @@ For the prediction of the SPEI, a Gradient Boosting Regressor is used.
 A Gradient Boosting Tree (GBT) is a machine learning technique used for regression and classification tasks. It builds an ensemble of decision trees in a sequential manner, where each new tree corrects the errors made by the previous trees. This is achieved by minimizing a loss function through gradient descent, allowing the model to improve accuracy iteratively. The final model is a weighted sum of the individual trees, leading to robust and high-performing predictions.
 
 ## Drought prediction - Jupyter Notebooks
-1. **Gradient Boosting Tree - Prediction:** [methods/method2/gbt_spei.ipynb](methods/method2/gbt_spei.ipynb)
+1. **Gradient Boosting Tree - Prediction:** [methods/gbt/gbt_spei.ipynb](methods/gbt/gbt_spei.ipynb)
     - The Jupyer Notebook demonstrates how a Gradient Boosting Tree can be used to predict the SPEI for the region of Germany.
     - Boxplots were created to visualize the prediction results distribution and the outliers.
-2. **Gradient Boosting Tree - Comparison:** [methods/method2/gbt_comparison.ipynb](methods/method2/gbt_comparison.ipynb)
+2. **Gradient Boosting Tree - Comparison:** [methods/gbt/gbt_comparison.ipynb](methods/gbt/gbt_comparison.ipynb)
     - This notebook compares the prediction results of the Gradient Boosting Tree with the actual SPEI values from the [Global SPEI database](https://spei.csic.es/database.html).
     - Graphs and boxplots were created aswell to compare the prediction results of the Gradient Boosting Tree with the actual SPEI values.
 
