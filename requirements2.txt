@@ -32,7 +32,7 @@ numpy==1.26.4
 packaging==23.2
 pandas==2.2.1
 parso==0.8.3
-partd==1.4.1
+partd==1.4.2
 pexpect==4.9.0
 pillow==10.3.0
 platformdirs==4.2.0
